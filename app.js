@@ -26,16 +26,32 @@ const port = process.env.PORT; // PORT
 
 // start server
 app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+  console.log(`Server is running at port http://localhost:${port}`);
 });
 
 // base endpoint
 app.get('/', (req, res) => {
-  res.send('SemPlan server is up.');
+  res.status(200).json({ message: 'SemPlan server is up.' });
 });
 
 // createAcount 
 
-// verifyLogin
+// verifyLogin 
+app.post('/verifyLogin', (req, res) => {
+    try {
+        const { email, password } = req.body;
+        
+        // input validation...
+
+        // const { date, contentType } = await pinata.gateways.get(); 
+        
+        send.status(200).json({})
+    }
+    catch(error) {
+        console.log(error);
+        res.status(401).json({error: 'Failed to log in.'});
+    }
+});
+
 
 
