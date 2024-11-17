@@ -6,7 +6,9 @@ import bodyParser from 'body-parser';
 import jwt from 'jsonwebtoken';
 import multer from 'multer';
 import crypto from 'crypto';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 dotenv.config(); // configure env vars immediately
+
 
 // pinata setup ----
 import { PinataSDK } from 'pinata';
@@ -26,6 +28,8 @@ app.use(express.json());
 app.use(cors());
 app.use(bodyParser.json());
 const upload = multer({ dest: 'uploads/' }); // temporary storage for files
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 const port = process.env.PORT; // PORT
 
 // start server
@@ -44,15 +48,13 @@ app.get('/', (req, res) => {
 });
 
 // upload file 
-app.post('/uploadFile', upload.single('pdf'), async (req, res) => {
+app.post('/uploadFile',upload.single("file"),async (req, res) => {
     try {
-        const { email } = req.body; // get email 
-        const file = req.file; // get filepath from multer middleware
-        const email_id = crypto.createHash('md5').update(email).digest('hex'); // create hex for id        
-        
-        const fileToUpload = new File([file], file.name, {type: file.mimetype});
-        const upload = await pinata.upload.file(fileToUpload).addMetadata({name: email_id})
-        const CID = upload.cid;
+       const file = req.file// get filepath from multer middleware
+  console.log(file)
+       const fileToUpload = new File([fs.readFileSync(file.path)], file.name, {type: file.mimetype});
+        const upload = await pinata.upload.file(fileToUpload)
+        const CID = upload.cid
         
         res.status(200).json({token: CID, message: "file upload success"});
     }
@@ -62,15 +64,18 @@ app.post('/uploadFile', upload.single('pdf'), async (req, res) => {
     }
 });
 
-app.post('/getUploadedFile', async (req, res) => {
+app.post('/generateTimeline', async (req, res) => {
     try {
         const { token } = req.body;
-        const file = await pinata.gateways.get(token);
-
-        res.status(200).json({file: file});
+        console.log(token)
+        const {data} = await pinata.gateways.get(token);
+        const result = await model.generateContent([`Tell me about this file: ${data}`])
+       console.log(result);
+        res.status(200).json({message: result.response.text()})
     }
     catch(error) {
-        res.status(400).json({error: "failed to get file"});
+        
+        res.status(400).json({error: error});
     }
     
 })
