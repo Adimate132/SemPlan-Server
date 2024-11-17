@@ -6,6 +6,7 @@ import bodyParser from 'body-parser';
 import jwt from 'jsonwebtoken';
 import multer from 'multer';
 import crypto from 'crypto';
+import * as pdfjsLib from 'pdfjs-dist';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 dotenv.config(); // configure env vars immediately
 
@@ -67,15 +68,35 @@ app.post('/uploadFile',upload.single("file"),async (req, res) => {
 app.post('/generateTimeline', async (req, res) => {
     try {
         const { token } = req.body;
-        console.log(token)
-        const {data} = await pinata.gateways.get(token);
-        const result = await model.generateContent([`Tell me about this file: ${data}`])
-       console.log(result);
-        res.status(200).json({message: result.response.text()})
+        const { data } = await pinata.gateways.get(token);
+
+        // Convert Blob data to ArrayBuffer
+        const arrayBuffer = await data.arrayBuffer();
+
+        // Convert ArrayBuffer to Uint8Array (pdfjs expects this)
+        const pdfData = new Uint8Array(arrayBuffer); // Create Uint8Array from ArrayBuffer
+
+        // Load the PDF document using PDF.js
+        const pdfDocument = await pdfjsLib.getDocument({ data: pdfData }).promise;
+
+        // Extract text from the first page (you can modify to loop through all pages)
+        const page = await pdfDocument.getPage(1);
+        const textContent = await page.getTextContent();
+        const text = textContent.items.map(item => item.str).join(' ');
+
+        // Generate content based on the extracted PDF text
+        const result = await model.generateContent(`
+            Utilizing the course start, end, and due dates, respond only with JSON objects that contains the due dates.
+            If you respond with anything other than JSON objects the app will break. Do NOT respond with empty objects.
+            Infer dates if needed. objects must contain assignment name & date in YYYY-MM-DD. You must have at least 8 objects with
+            8 dates. The JSON MUST be encapsulated in one large JSON object. Do NOT have any unnecessary symbols.
+            Keep it STRICTLY JSON and NOTHING else: ${text}
+        `);
+         
+        console.log(result);
+        res.status(200).json({ message: result.response.text() });
+    } catch (error) {
+        console.log(error);
+        res.status(400).json({ error: error.message });
     }
-    catch(error) {
-        
-        res.status(400).json({error: error});
-    }
-    
-})
+});
